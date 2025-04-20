@@ -7,13 +7,15 @@
     body { font-family: sans-serif; padding: 20px; }
     canvas { border: 1px solid #ccc; margin: 10px 0; display: block; }
     .page-block { margin-bottom: 20px; }
+    .order-input { width: 50px; margin-left: 10px; }
   </style>
 </head>
 <body>
   <h1>PDF編集アプリ</h1>
   <input type="file" id="fileInput" accept="application/pdf" />
-  <div>
+  <div style="margin: 10px 0;">
     <button id="deletePagesBtn">選択ページを削除</button>
+    <button id="reorderBtn">並び替えを実行</button>
     <button id="downloadBtn">PDFをダウンロード</button>
   </div>
   <div id="pdfContainer"></div>
@@ -24,6 +26,7 @@
     const fileInput = document.getElementById('fileInput');
     const container = document.getElementById('pdfContainer');
     const deleteBtn = document.getElementById('deletePagesBtn');
+    const reorderBtn = document.getElementById('reorderBtn');
     const downloadBtn = document.getElementById('downloadBtn');
 
     let loadedPdfBytes = null;
@@ -48,7 +51,32 @@
       pagesToDelete.forEach(index => currentPdfDoc.removePage(index));
       alert(`${pagesToDelete.length}ページ削除しました`);
 
-      await renderCurrentPdf(); // ← ここで再描画！
+      await renderCurrentPdf(); // 再描画
+    });
+
+    reorderBtn.addEventListener('click', async () => {
+      if (!currentPdfDoc) return;
+
+      const pageBlocks = container.querySelectorAll('.page-block');
+      const newOrder = [];
+
+      pageBlocks.forEach((block, index) => {
+        const input = block.querySelector('input[type="number"]');
+        const order = parseInt(input.value);
+        if (!isNaN(order)) {
+          newOrder.push({ index, order });
+        }
+      });
+
+      newOrder.sort((a, b) => a.order - b.order);
+      const reorderedIndices = newOrder.map(item => item.index);
+
+      const newPdf = await PDFLib.PDFDocument.create();
+      const copiedPages = await newPdf.copyPages(currentPdfDoc, reorderedIndices);
+      copiedPages.forEach(p => newPdf.addPage(p));
+
+      currentPdfDoc = newPdf;
+      await renderCurrentPdf();
     });
 
     downloadBtn.addEventListener('click', async () => {
@@ -65,7 +93,6 @@
       URL.revokeObjectURL(url);
     });
 
-    // 共通のPDF表示描画処理（初回・削除後に使用）
     async function renderCurrentPdf() {
       const pdfBytes = await currentPdfDoc.save();
       const reloadedPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
@@ -86,13 +113,21 @@
         const pageBlock = document.createElement('div');
         pageBlock.className = 'page-block';
 
+        const orderInput = document.createElement('input');
+        orderInput.type = 'number';
+        orderInput.min = 1;
+        orderInput.value = i;
+        orderInput.className = 'order-input';
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = i - 1;
 
         pageBlock.appendChild(canvas);
         pageBlock.appendChild(document.createTextNode(`ページ ${i}`));
+        pageBlock.appendChild(orderInput);
         pageBlock.appendChild(checkbox);
+
         container.appendChild(pageBlock);
       }
     }
