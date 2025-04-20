@@ -43,10 +43,23 @@
   </div>
   <div id="pdfContainer"></div>
 
-  <script src="./libs/Sortable.min.js"></script>
-  <script src="./libs/pdf.min.js"></script>
+  <!-- ✅ CDN + SRI付きで読み込み -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"
+    integrity="sha512-yBShCGrHx9Yo6TGn9mtBF9SSVuM5symeArB8+eLpvkNGt47BqzBG9rMY4y+k8h3oQUkacwqOD0MJ3/6ykVK9dA=="
+    crossorigin="anonymous">
+  </script>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+    integrity="sha512-1QW0F/77hhmDPVj7jNVvqN4bNLa3nto5+aXwqGeq+nxrBL+us+4IgdxIuMf7DuE69hEfR+ZoKXY2z8OCiZ7EvA=="
+    crossorigin="anonymous">
+  </script>
+
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = './libs/pdf.worker.min.js';
+    // ✅ CDN版pdf.workerの指定
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     const fileInput = document.getElementById('fileInput');
     const container = document.getElementById('pdfContainer');
