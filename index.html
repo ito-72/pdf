@@ -35,39 +35,7 @@
 
       loadedPdfBytes = await file.arrayBuffer();
       currentPdfDoc = await PDFLib.PDFDocument.load(loadedPdfBytes);
-
-      const pdf = await pdfjsLib.getDocument({ data: loadedPdfBytes }).promise;
-     // ページ削除処理のあとに再描画
-container.innerHTML = ''; // 一度すべて削除
-
-const pdfBytes = await currentPdfDoc.save(); // 最新状態で
-const reloadedPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-
-for (let i = 1; i <= reloadedPdf.numPages; i++) {
-  const page = await reloadedPdf.getPage(i);
-  const scale = 0.5;
-  const viewport = page.getViewport({ scale });
-
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-
-  await page.render({ canvasContext: context, viewport }).promise;
-
-  const pageBlock = document.createElement('div');
-  pageBlock.className = 'page-block';
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.value = i - 1;
-
-  pageBlock.appendChild(canvas);
-  pageBlock.appendChild(document.createTextNode(`ページ ${i}`));
-  pageBlock.appendChild(checkbox);
-  container.appendChild(pageBlock);
-}
-
+      await renderCurrentPdf(); // 初回表示
     });
 
     deleteBtn.addEventListener('click', async () => {
@@ -75,10 +43,12 @@ for (let i = 1; i <= reloadedPdf.numPages; i++) {
 
       const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
       const pagesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value));
-      pagesToDelete.sort((a, b) => b - a); // 後ろから削除
+      pagesToDelete.sort((a, b) => b - a);
 
       pagesToDelete.forEach(index => currentPdfDoc.removePage(index));
       alert(`${pagesToDelete.length}ページ削除しました`);
+
+      await renderCurrentPdf(); // ← ここで再描画！
     });
 
     downloadBtn.addEventListener('click', async () => {
@@ -94,6 +64,38 @@ for (let i = 1; i <= reloadedPdf.numPages; i++) {
 
       URL.revokeObjectURL(url);
     });
+
+    // 共通のPDF表示描画処理（初回・削除後に使用）
+    async function renderCurrentPdf() {
+      const pdfBytes = await currentPdfDoc.save();
+      const reloadedPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+      container.innerHTML = '';
+
+      for (let i = 1; i <= reloadedPdf.numPages; i++) {
+        const page = await reloadedPdf.getPage(i);
+        const scale = 0.5;
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: context, viewport }).promise;
+
+        const pageBlock = document.createElement('div');
+        pageBlock.className = 'page-block';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = i - 1;
+
+        pageBlock.appendChild(canvas);
+        pageBlock.appendChild(document.createTextNode(`ページ ${i}`));
+        pageBlock.appendChild(checkbox);
+        container.appendChild(pageBlock);
+      }
+    }
   </script>
 </body>
 </html>
