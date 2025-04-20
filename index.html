@@ -2,31 +2,63 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>PDFページビューア</title>
+  <title>PDF編集アプリ</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    canvas { border: 1px solid #ccc; margin: 10px 0; }
+    #controls { margin-bottom: 20px; }
+    #pdfContainer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .pageWrapper {
+      border: 2px solid transparent;
+      padding: 4px;
+      cursor: grab;
+      transition: border 0.2s;
+      position: relative;
+    }
+    .pageWrapper.selected {
+      border: 2px solid #007bff;
+      background-color: #f0f8ff;
+    }
+    .insertZone {
+      width: 100%;
+      height: 20px;
+      background: #eee;
+      text-align: center;
+      cursor: pointer;
+    }
+    .insertZone:hover {
+      background: #ccc;
+    }
   </style>
 </head>
 <body>
-  <h1>PDFページビューア</h1>
-  <input type="file" id="fileInput" accept="application/pdf" />
+  <h1>PDF編集アプリ</h1>
+  <div id="controls">
+    <input type="file" id="fileInput" accept="application/pdf" />
+    <button onclick="deleteSelectedPages()">選択ページを削除</button>
+    <button onclick="enableInsertMode()">空白ページを追加</button>
+  </div>
   <div id="pdfContainer"></div>
 
-  <!-- ライブラリ読み込み -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="./libs/Sortable.min.js"></script>
+  <script src="./libs/pdf.min.js"></script>
   <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './libs/pdf.worker.min.js';
+
     const fileInput = document.getElementById('fileInput');
     const container = document.getElementById('pdfContainer');
+    let insertMode = false;
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      container.innerHTML = ''; // 前の表示を消す
+      container.innerHTML = '';
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const scale = 0.5;
@@ -36,11 +68,44 @@
         const context = canvas.getContext('2d');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-
         await page.render({ canvasContext: context, viewport }).promise;
-        container.appendChild(canvas);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'pageWrapper';
+        wrapper.appendChild(canvas);
+
+        wrapper.addEventListener('click', () => {
+          if (insertMode) {
+            const blank = document.createElement('div');
+            blank.className = 'pageWrapper';
+            blank.style.background = '#fff';
+            blank.style.width = canvas.width + 'px';
+            blank.style.height = canvas.height + 'px';
+            wrapper.insertAdjacentElement('beforebegin', blank);
+            insertMode = false;
+            alert('空白ページを追加しました');
+          } else {
+            wrapper.classList.toggle('selected');
+          }
+        });
+
+        container.appendChild(wrapper);
       }
+
+      Sortable.create(container, {
+        animation: 150,
+        ghostClass: 'dragging'
+      });
     });
+
+    function deleteSelectedPages() {
+      document.querySelectorAll('.pageWrapper.selected').forEach(el => el.remove());
+    }
+
+    function enableInsertMode() {
+      insertMode = true;
+      alert('追加したい位置のページをクリックしてください');
+    }
   </script>
 </body>
 </html>
