@@ -2,31 +2,43 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>PDFページビューア</title>
+  <title>PDF編集アプリ</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    canvas { border: 1px solid #ccc; margin: 10px 0; }
+    canvas { border: 1px solid #ccc; margin: 10px 0; display: block; }
+    .page-block { margin-bottom: 20px; }
   </style>
 </head>
 <body>
-  <h1>PDFページビューア</h1>
+  <h1>PDF編集アプリ</h1>
   <input type="file" id="fileInput" accept="application/pdf" />
+  <div>
+    <button id="deletePagesBtn">選択ページを削除</button>
+    <button id="downloadBtn">PDFをダウンロード</button>
+  </div>
   <div id="pdfContainer"></div>
 
-  <!-- ライブラリ読み込み -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
   <script>
     const fileInput = document.getElementById('fileInput');
     const container = document.getElementById('pdfContainer');
+    const deleteBtn = document.getElementById('deletePagesBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let loadedPdfBytes = null;
+    let currentPdfDoc = null;
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      loadedPdfBytes = await file.arrayBuffer();
+      currentPdfDoc = await PDFLib.PDFDocument.load(loadedPdfBytes);
 
-      container.innerHTML = ''; // 前の表示を消す
+      const pdf = await pdfjsLib.getDocument({ data: loadedPdfBytes }).promise;
+      container.innerHTML = '';
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const scale = 0.5;
@@ -38,8 +50,44 @@
         canvas.height = viewport.height;
 
         await page.render({ canvasContext: context, viewport }).promise;
-        container.appendChild(canvas);
+
+        const pageBlock = document.createElement('div');
+        pageBlock.className = 'page-block';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = i - 1; // 0-based index
+
+        pageBlock.appendChild(canvas);
+        pageBlock.appendChild(document.createTextNode(`ページ ${i}`));
+        pageBlock.appendChild(checkbox);
+        container.appendChild(pageBlock);
       }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!currentPdfDoc) return;
+
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+      const pagesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      pagesToDelete.sort((a, b) => b - a); // 後ろから削除
+
+      pagesToDelete.forEach(index => currentPdfDoc.removePage(index));
+      alert(`${pagesToDelete.length}ページ削除しました`);
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      if (!currentPdfDoc) return;
+      const pdfBytes = await currentPdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'edited.pdf';
+      a.click();
+
+      URL.revokeObjectURL(url);
     });
   </script>
 </body>
