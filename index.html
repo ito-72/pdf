@@ -5,13 +5,14 @@
   <title>PDF編集アプリ</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
+    .controls { margin: 10px 0; }
     .grid-container {
       display: flex;
       flex-wrap: wrap;
       gap: 20px;
     }
     .page-block {
-      width: calc(50% - 10px); /* 2列表示 */
+      width: calc(50% - 10px);
       border: 2px solid #ccc;
       padding: 5px;
       cursor: pointer;
@@ -32,16 +33,29 @@
     .sortable-chosen {
       outline: 2px dashed #007bff;
     }
+
+    /* モバイル対応 */
+    @media (max-width: 768px) {
+      .page-block {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
   <h1>PDF編集アプリ</h1>
   <input type="file" id="fileInput" accept="application/pdf" />
-  <div style="margin: 10px 0;">
+
+  <div class="controls">
     <button id="deletePagesBtn">選択ページを削除</button>
     <button id="reorderBtn">並び替えを実行</button>
     <button id="downloadBtn">PDFをダウンロード</button>
+    <label style="margin-left: 10px;">拡大率:
+      <input type="range" id="scaleSlider" min="0.1" max="1.0" step="0.1" value="0.3">
+      <span id="scaleValue">0.3</span>
+    </label>
   </div>
+
   <div id="pdfContainer" class="grid-container"></div>
 
   <!-- ライブラリ -->
@@ -55,8 +69,11 @@
     const deleteBtn = document.getElementById('deletePagesBtn');
     const reorderBtn = document.getElementById('reorderBtn');
     const downloadBtn = document.getElementById('downloadBtn');
+    const scaleSlider = document.getElementById('scaleSlider');
+    const scaleValue = document.getElementById('scaleValue');
 
     let currentPdfDoc = null;
+    let currentScale = parseFloat(scaleSlider.value);
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -67,21 +84,28 @@
       await renderCurrentPdf();
     });
 
+    scaleSlider.addEventListener('input', async () => {
+      currentScale = parseFloat(scaleSlider.value);
+      scaleValue.textContent = currentScale.toFixed(1);
+      if (currentPdfDoc) await renderCurrentPdf();
+    });
+
     async function renderCurrentPdf() {
       const pdfBytes = await currentPdfDoc.save();
       const reloadedPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-
       container.innerHTML = '';
 
       for (let i = 1; i <= reloadedPdf.numPages; i++) {
         const page = await reloadedPdf.getPage(i);
-        const scale = 0.5;
-        const viewport = page.getViewport({ scale });
+        const viewport = page.getViewport({ scale: currentScale });
 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+
         await page.render({ canvasContext: context, viewport }).promise;
 
         const pageBlock = document.createElement('div');
@@ -89,15 +113,13 @@
         pageBlock.dataset.index = i - 1;
         pageBlock.appendChild(canvas);
 
-        // 選択トグル
-        pageBlock.addEventListener('click', (event) => {
+        pageBlock.addEventListener('click', () => {
           pageBlock.classList.toggle('selected');
         });
 
         container.appendChild(pageBlock);
       }
 
-      // 並び替え有効化
       Sortable.create(container, {
         animation: 150,
         ghostClass: 'sortable-ghost',
@@ -115,7 +137,7 @@
         return;
       }
 
-      pagesToDelete.sort((a, b) => b - a); // 後ろから削除
+      pagesToDelete.sort((a, b) => b - a);
       pagesToDelete.forEach(index => currentPdfDoc.removePage(index));
       await renderCurrentPdf();
     });
@@ -144,7 +166,6 @@
       a.href = url;
       a.download = 'edited.pdf';
       a.click();
-
       URL.revokeObjectURL(url);
     });
   </script>
