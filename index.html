@@ -9,12 +9,15 @@
     .grid-container {
       display: flex;
       flex-wrap: wrap;
-      gap: 20px;
+      gap: 10px;
+      justify-content: flex-start;
     }
     .page-block {
-      width: calc(50% - 10px);
+      width: 20%;
+      max-width: 200px;
       border: 2px solid #ccc;
-      padding: 5px;
+      padding: 4px;
+      box-sizing: border-box;
       cursor: pointer;
       position: relative;
     }
@@ -36,6 +39,11 @@
 
     /* モバイル対応 */
     @media (max-width: 768px) {
+      .page-block {
+        width: 45%;
+      }
+    }
+    @media (max-width: 480px) {
       .page-block {
         width: 100%;
       }
@@ -103,14 +111,15 @@
         const context = canvas.getContext('2d');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        canvas.style.width = '100%';
-        canvas.style.height = 'auto';
 
         await page.render({ canvasContext: context, viewport }).promise;
 
         const pageBlock = document.createElement('div');
         pageBlock.className = 'page-block';
         pageBlock.dataset.index = i - 1;
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+
         pageBlock.appendChild(canvas);
 
         pageBlock.addEventListener('click', () => {
