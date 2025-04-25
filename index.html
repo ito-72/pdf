@@ -133,6 +133,7 @@
 
         const pageBlock = document.createElement('div');
         pageBlock.className = 'page-block';
+        pageBlock.dataset.index = i - 1; // ← 正しい順序を保持！
 
         canvas.style.width = '100%';
         canvas.style.height = 'auto';
@@ -152,15 +153,17 @@
         onEnd: async () => {
           if (!currentPdfDoc) return;
 
-          const pageBlocks = container.querySelectorAll('.page-block');
-          const newPdf = await PDFLib.PDFDocument.create();
+          const pageBlocks = Array.from(container.querySelectorAll('.page-block'));
+          const originalPdf = currentPdfDoc;
+          const reorderedPdf = await PDFLib.PDFDocument.create();
 
           for (let i = 0; i < pageBlocks.length; i++) {
-            const copied = await newPdf.copyPages(currentPdfDoc, [i]);
-            newPdf.addPage(copied[0]);
+            const index = parseInt(pageBlocks[i].dataset.index); // ← 元のインデックスを取得
+            const copied = await reorderedPdf.copyPages(originalPdf, [index]);
+            reorderedPdf.addPage(copied[0]);
           }
 
-          currentPdfDoc = newPdf;
+          currentPdfDoc = reorderedPdf;
           await renderCurrentPdf();
         }
       });
@@ -169,30 +172,35 @@
     deleteBtn.addEventListener('click', async () => {
       if (!currentPdfDoc) return;
 
-      const selectedBlocks = container.querySelectorAll('.page-block.selected');
-      const pagesToDelete = Array.from(selectedBlocks).map((_, i) => i);
-      if (pagesToDelete.length === 0) {
+      const selectedBlocks = Array.from(container.querySelectorAll('.page-block.selected'));
+      const indicesToDelete = selectedBlocks.map(block => parseInt(block.dataset.index));
+
+      if (indicesToDelete.length === 0) {
         alert("削除するページを選択してください。");
         return;
       }
 
-      pagesToDelete.sort((a, b) => b - a);
-      pagesToDelete.forEach(index => currentPdfDoc.removePage(index));
+      // 降順にしてから削除（順番崩れ防止）
+      indicesToDelete.sort((a, b) => b - a);
+      indicesToDelete.forEach(index => currentPdfDoc.removePage(index));
+
       await renderCurrentPdf();
     });
 
     reorderBtn.addEventListener('click', async () => {
       if (!currentPdfDoc) return;
 
-      const pageBlocks = container.querySelectorAll('.page-block');
-      const newPdf = await PDFLib.PDFDocument.create();
+      const pageBlocks = Array.from(container.querySelectorAll('.page-block'));
+      const originalPdf = currentPdfDoc;
+      const reorderedPdf = await PDFLib.PDFDocument.create();
 
       for (let i = 0; i < pageBlocks.length; i++) {
-        const copied = await newPdf.copyPages(currentPdfDoc, [i]);
-        newPdf.addPage(copied[0]);
+        const index = parseInt(pageBlocks[i].dataset.index);
+        const copied = await reorderedPdf.copyPages(originalPdf, [index]);
+        reorderedPdf.addPage(copied[0]);
       }
 
-      currentPdfDoc = newPdf;
+      currentPdfDoc = reorderedPdf;
       await renderCurrentPdf();
     });
 
