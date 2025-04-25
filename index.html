@@ -146,11 +146,27 @@
       }
 
       Sortable.create(container, {
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen'
-      });
-    }
+  animation: 150,
+  ghostClass: 'sortable-ghost',
+  chosenClass: 'sortable-chosen',
+  onEnd: async () => {
+    // 並び替え後、自動的にcurrentPdfDocを更新
+    const pageBlocks = container.querySelectorAll('.page-block');
+    const newOrder = Array.from(pageBlocks).map(block => parseInt(block.dataset.index));
+
+    const newPdf = await PDFLib.PDFDocument.create();
+    const copiedPages = await newPdf.copyPages(currentPdfDoc, newOrder);
+    copiedPages.forEach(p => newPdf.addPage(p));
+
+    currentPdfDoc = newPdf;
+
+    // data-indexを再設定（これが重要！）
+    pageBlocks.forEach((block, i) => {
+      block.dataset.index = i;
+    });
+  }
+});
+
 
     deleteBtn.addEventListener('click', async () => {
       if (!currentPdfDoc) return;
