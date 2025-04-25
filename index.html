@@ -46,16 +46,14 @@
 </head>
 <body>
   <h1>PDF編集アプリ</h1>
-  <p>
-    このツールでは、PDFの表示・並べ替え・削除・ダウンロードが可能です。
-  </p>
+  <p>このツールでは、PDFの結合・表示・並べ替え・削除・ダウンロードが可能です。</p>
   <ol>
-    <li>ファイルを選択</li>
+    <li>複数のPDFを選択</li>
     <li>ページ選択→削除/並び替え</li>
     <li>PDFをダウンロード</li>
   </ol>
 
-  <input type="file" id="fileInput" accept="application/pdf" />
+  <input type="file" id="fileInput" accept="application/pdf" multiple />
 
   <div class="controls">
     <button id="deletePagesBtn">選択ページを削除</button>
@@ -90,12 +88,20 @@
     let currentScale = parseFloat(scaleSlider.value);
 
     fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
 
-      const arrayBuffer = await file.arrayBuffer();
       try {
-        currentPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+        const mergedPdf = await PDFLib.PDFDocument.create();
+
+        for (const file of files) {
+          const arrayBuffer = await file.arrayBuffer();
+          const loadedPdf = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+          const copiedPages = await mergedPdf.copyPages(loadedPdf, loadedPdf.getPageIndices());
+          copiedPages.forEach(p => mergedPdf.addPage(p));
+        }
+
+        currentPdfDoc = mergedPdf;
         await renderCurrentPdf();
       } catch (err) {
         alert("PDFの読み込みに失敗しました（暗号化されている可能性があります）");
