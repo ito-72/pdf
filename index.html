@@ -133,7 +133,7 @@
 
         const pageBlock = document.createElement('div');
         pageBlock.className = 'page-block';
-        pageBlock.dataset.index = i - 1;
+
         canvas.style.width = '100%';
         canvas.style.height = 'auto';
 
@@ -145,31 +145,32 @@
         container.appendChild(pageBlock);
       }
 
-    Sortable.create(container, {
-  animation: 150,
-  ghostClass: 'sortable-ghost',
-  chosenClass: 'sortable-chosen',
-  onEnd: async () => {
-    if (!currentPdfDoc) return;
+      Sortable.create(container, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        onEnd: async () => {
+          if (!currentPdfDoc) return;
 
-    const pageBlocks = container.querySelectorAll('.page-block');
-    const newOrder = Array.from(pageBlocks).map(block => parseInt(block.dataset.index));
+          const pageBlocks = container.querySelectorAll('.page-block');
+          const newPdf = await PDFLib.PDFDocument.create();
 
-    const newPdf = await PDFLib.PDFDocument.create();
-    const copiedPages = await newPdf.copyPages(currentPdfDoc, newOrder);
-    copiedPages.forEach(p => newPdf.addPage(p));
+          for (let i = 0; i < pageBlocks.length; i++) {
+            const copied = await newPdf.copyPages(currentPdfDoc, [i]);
+            newPdf.addPage(copied[0]);
+          }
 
-    currentPdfDoc = newPdf;
-    await renderCurrentPdf();
-  }
-});
-
+          currentPdfDoc = newPdf;
+          await renderCurrentPdf();
+        }
+      });
+    }
 
     deleteBtn.addEventListener('click', async () => {
       if (!currentPdfDoc) return;
 
       const selectedBlocks = container.querySelectorAll('.page-block.selected');
-      const pagesToDelete = Array.from(selectedBlocks).map(block => parseInt(block.dataset.index));
+      const pagesToDelete = Array.from(selectedBlocks).map((_, i) => i);
       if (pagesToDelete.length === 0) {
         alert("削除するページを選択してください。");
         return;
@@ -184,11 +185,12 @@
       if (!currentPdfDoc) return;
 
       const pageBlocks = container.querySelectorAll('.page-block');
-      const newOrder = Array.from(pageBlocks).map(block => parseInt(block.dataset.index));
-
       const newPdf = await PDFLib.PDFDocument.create();
-      const copiedPages = await newPdf.copyPages(currentPdfDoc, newOrder);
-      copiedPages.forEach(p => newPdf.addPage(p));
+
+      for (let i = 0; i < pageBlocks.length; i++) {
+        const copied = await newPdf.copyPages(currentPdfDoc, [i]);
+        newPdf.addPage(copied[0]);
+      }
 
       currentPdfDoc = newPdf;
       await renderCurrentPdf();
