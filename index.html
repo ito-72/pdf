@@ -25,10 +25,20 @@
       background-color: #d0f0ff;
       border-color: #007bff;
     }
-    canvas {
+    .insert-point {
       width: 100%;
-      height: auto;
-      display: block;
+      height: 20px;
+      background-color: #f0f0f0;
+      border: 1px dashed #aaa;
+      margin: 5px 0;
+      cursor: pointer;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }
+    .insert-point.selected {
+      background-color: #d0f0d0;
+      border-color: #00aa00;
     }
     .sortable-ghost {
       opacity: 0.4;
@@ -49,7 +59,7 @@
   <p>このツールでは、PDFの結合・表示・並べ替え・削除・ダウンロードが可能です。</p>
   <ol>
     <li>複数のPDFを選択</li>
-    <li>ページ選択→削除/並び替え</li>
+    <li>ページ選択→削除/並び替え/空白挿入</li>
     <li>PDFをダウンロード</li>
   </ol>
 
@@ -58,6 +68,8 @@
   <div class="controls">
     <button id="deletePagesBtn">選択ページを削除</button>
     <button id="reorderBtn">並び替えを実行</button>
+    <button id="insertBlankPageBtn">空白ページを挿入</button>
+    <button id="confirmInsertBtn" style="display: none;">挿入を確定</button>
     <button id="downloadBtn">PDFをダウンロード</button>
     <label style="margin-left: 10px;">拡大率:
       <input type="range" id="scaleSlider" min="0.1" max="1.0" step="0.1" value="0.3">
@@ -67,7 +79,7 @@
 
   <div id="pdfContainer" class="grid-container"></div>
 
-  <!-- ライブラリ -->
+  <!-- ライブラリ読み込み -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script>
     window.pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -80,12 +92,16 @@
     const container = document.getElementById('pdfContainer');
     const deleteBtn = document.getElementById('deletePagesBtn');
     const reorderBtn = document.getElementById('reorderBtn');
+    const insertBlankBtn = document.getElementById('insertBlankPageBtn');
+    const confirmInsertBtn = document.getElementById('confirmInsertBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const scaleSlider = document.getElementById('scaleSlider');
     const scaleValue = document.getElementById('scaleValue');
 
     let currentPdfDoc = null;
     let currentScale = parseFloat(scaleSlider.value);
+    let insertMode = false;
+    let selectedInsertIndex = null;
 
     fileInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
@@ -121,6 +137,19 @@
       container.innerHTML = '';
 
       for (let i = 1; i <= reloadedPdf.numPages; i++) {
+        if (insertMode) {
+          const insertDiv = document.createElement('div');
+          insertDiv.className = 'insert-point';
+          insertDiv.textContent = 'ここに挿入';
+          insertDiv.dataset.index = i - 1;
+          insertDiv.addEventListener('click', () => {
+            document.querySelectorAll('.insert-point').forEach(p => p.classList.remove('selected'));
+            insertDiv.classList.add('selected');
+            selectedInsertIndex = parseInt(insertDiv.dataset.index);
+          });
+          container.appendChild(insertDiv);
+        }
+
         const page = await reloadedPdf.getPage(i);
         const viewport = page.getViewport({ scale: currentScale });
 
@@ -133,7 +162,7 @@
 
         const pageBlock = document.createElement('div');
         pageBlock.className = 'page-block';
-        pageBlock.dataset.index = i - 1; // ← 正しい順序を保持！
+        pageBlock.dataset.index = i - 1;
 
         canvas.style.width = '100%';
         canvas.style.height = 'auto';
@@ -146,27 +175,42 @@
         container.appendChild(pageBlock);
       }
 
-      Sortable.create(container, {
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        onEnd: async () => {
-          if (!currentPdfDoc) return;
+      if (insertMode) {
+        const insertDiv = document.createElement('div');
+        insertDiv.className = 'insert-point';
+        insertDiv.textContent = 'ここに挿入';
+        insertDiv.dataset.index = reloadedPdf.numPages;
+        insertDiv.addEventListener('click', () => {
+          document.querySelectorAll('.insert-point').forEach(p => p.classList.remove('selected'));
+          insertDiv.classList.add('selected');
+          selectedInsertIndex = parseInt(insertDiv.dataset.index);
+        });
+        container.appendChild(insertDiv);
+      }
 
-          const pageBlocks = Array.from(container.querySelectorAll('.page-block'));
-          const originalPdf = currentPdfDoc;
-          const reorderedPdf = await PDFLib.PDFDocument.create();
+      if (!insertMode) {
+        Sortable.create(container, {
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          onEnd: async () => {
+            if (!currentPdfDoc) return;
 
-          for (let i = 0; i < pageBlocks.length; i++) {
-            const index = parseInt(pageBlocks[i].dataset.index); // ← 元のインデックスを取得
-            const copied = await reorderedPdf.copyPages(originalPdf, [index]);
-            reorderedPdf.addPage(copied[0]);
+            const pageBlocks = Array.from(container.querySelectorAll('.page-block'));
+            const originalPdf = currentPdfDoc;
+            const reorderedPdf = await PDFLib.PDFDocument.create();
+
+            for (let i = 0; i < pageBlocks.length; i++) {
+              const index = parseInt(pageBlocks[i].dataset.index);
+              const copied = await reorderedPdf.copyPages(originalPdf, [index]);
+              reorderedPdf.addPage(copied[0]);
+            }
+
+            currentPdfDoc = reorderedPdf;
+            await renderCurrentPdf();
           }
-
-          currentPdfDoc = reorderedPdf;
-          await renderCurrentPdf();
-        }
-      });
+        });
+      }
     }
 
     deleteBtn.addEventListener('click', async () => {
@@ -176,11 +220,10 @@
       const indicesToDelete = selectedBlocks.map(block => parseInt(block.dataset.index));
 
       if (indicesToDelete.length === 0) {
-        alert("削除するページを選択してください。");
+        alert("削除するページを選択してください。\n※空白挿入モードでは削除できません。退出してください。");
         return;
       }
 
-      // 降順にしてから削除（順番崩れ防止）
       indicesToDelete.sort((a, b) => b - a);
       indicesToDelete.forEach(index => currentPdfDoc.removePage(index));
 
@@ -201,6 +244,39 @@
       }
 
       currentPdfDoc = reorderedPdf;
+      await renderCurrentPdf();
+    });
+
+    insertBlankBtn.addEventListener('click', () => {
+      insertMode = true;
+      confirmInsertBtn.style.display = 'inline';
+      insertBlankBtn.style.display = 'none';
+      renderCurrentPdf();
+    });
+
+    confirmInsertBtn.addEventListener('click', async () => {
+      if (selectedInsertIndex === null) {
+        alert('挿入位置を選択してください。');
+        return;
+      }
+      const originalPdf = currentPdfDoc;
+      const newPdf = await PDFLib.PDFDocument.create();
+
+      for (let i = 0; i <= originalPdf.getPageCount(); i++) {
+        if (i === selectedInsertIndex) {
+          newPdf.addPage([595.28, 841.89]); // A4白紙
+        }
+        if (i < originalPdf.getPageCount()) {
+          const copied = await newPdf.copyPages(originalPdf, [i]);
+          newPdf.addPage(copied[0]);
+        }
+      }
+
+      currentPdfDoc = newPdf;
+      insertMode = false;
+      selectedInsertIndex = null;
+      confirmInsertBtn.style.display = 'none';
+      insertBlankBtn.style.display = 'inline';
       await renderCurrentPdf();
     });
 
